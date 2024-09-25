@@ -1,0 +1,30 @@
+#!/opt/homebrew/bin/bash
+
+export PDSH_SSH_ARGS_APPEND="-oLogLevel=Error"
+
+connection=ssh
+hosts=$1
+commands=$2
+
+host_list=""
+
+get_children() {
+    if grep -q "\[$1:children\]" /etc/ansible/hosts;then
+        host_groups=$(awk -v RS='' "/\[$1:children\]/" /etc/ansible/hosts | tail -n +2 | tr '\n' ',')
+        IFS=',' read -ra ADDR <<< "$host_groups"
+        for i in "${ADDR[@]}"; do
+            get_children $i
+        done
+    elif
+        grep -q "^\[$1\]" /etc/ansible/hosts;then
+        host_list="$host_list$(awk -v RS='' "/\[$1\]/" /etc/ansible/hosts | tail -n +2 | tr '\n' ',')"
+    fi
+}
+
+
+get_children $hosts
+
+echo "HOST_LIST=$host_list"
+echo "--------------------"
+
+pdsh -w $host_list -R $connection $commands | dshbak -c
